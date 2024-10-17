@@ -1,24 +1,44 @@
-pool:
-  vmImage: 'ubuntu-16.04'
+# ASP.NET Core
+# Build and test ASP.NET Core projects targeting .NET Core.
+# Add steps that run tests, create a NuGet package, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/dotnet-core
+
 trigger:
   - master
-steps:
-  - task: CopyFiles@2
-    displayName: 'Copy Files to: $(build.artifactstagingdirectory)/Templates'
-    inputs:
-      SourceFolder: deployment
-      Contents: '*.json'
-      TargetFolder: '$(build.artifactstagingdirectory)/Templates'
-  - task: Npm@1
-    displayName: 'npm custom'
-    inputs:
-      command: custom
-      verbose: false
-      customCommand: 'install --production'
-  - task: ArchiveFiles@2
-    displayName: 'Archive $(Build.SourcesDirectory)'
-    inputs:
-      rootFolderOrFile: '$(Build.SourcesDirectory)'
-      includeRootFolder: false
-  - task: PublishBuildArtifacts@1
-    displayName: 'Publish Artifact: drop'
+
+variables:
+  buildConfiguration: 'Release'
+
+stages:
+  - stage: Build
+    jobs:
+      - job: Build
+        pool:
+          name: default
+        steps:
+          - script: dotnet restore
+          - task: DotNetCoreCLI@2
+            displayName: Build
+            inputs:
+              command: build
+              projects: '**/*.csproj'
+              arguments: '--configuration Release'
+          - task: DotNetCoreCLI@2
+            displayName: Test
+            inputs:
+              command: test
+              projects: '**/*Tests/*.csproj'
+              arguments: '--configuration $(BuildConfiguration)'
+          - task: DotNetCoreCLI@2
+            displayName: Publish
+            inputs:
+              command: publish
+              publishWebProjects: True
+              arguments: '--configuration $(BuildConfiguration) --output $(build.artifactstagingdirectory)'
+              zipAfterPublish: True
+          - task: PublishBuildArtifacts@1
+            displayName: 'Publish Artifact'
+            inputs:
+              PathtoPublish: '$(build.artifactstagingdirectory)'
+              ArtifactName: 'drop'
+            condition: succeededOrFailed()
